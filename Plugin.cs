@@ -1,4 +1,5 @@
 ﻿using BepInEx;
+using BepInEx.Configuration;
 using BrutalAPI;
 using HarmonyLib;
 using Mono.Cecil.Cil;
@@ -24,13 +25,15 @@ namespace AbominationMode
             // modded
             ["VanishingHands_EN"] = 2,
         };
-        public static int AddAbom = 1;
+        public static ConfigEntry<int> AddAbom;
 
         public static MethodInfo aa_ne_a = AccessTools.Method(typeof(Plugin), nameof(AddAbomination_NewEnemy_Add));
         public static MethodInfo aa_u_a = AccessTools.Method(typeof(Plugin), nameof(AddAbomination_Unbox_Add));
 
         public void Awake()
         {
+            AddAbom = Config.Bind("AbominationMode", "AbominationAmount", 1, "The amount of Abomination that will be given to enemies.");
+
             var harmony = new Harmony(GUID);
             harmony.PatchAll();
         }
@@ -53,6 +56,11 @@ namespace AbominationMode
             if (en == null)
                 return;
 
+            var addAmount = AddAbom.Value;
+
+            if (addAmount == 0)
+                return; // this fucking sucks
+
             if (en.Enemy == null || string.IsNullOrEmpty(en.Enemy.name) || !EnemiesWithAbom.TryGetValue(en.Enemy.name, out var origAbom))
                 origAbom = 0;
 
@@ -70,7 +78,7 @@ namespace AbominationMode
                     return;
             }
 
-            var abomAmt = origAbom + AddAbom;
+            var abomAmt = origAbom + addAmount;
             var abom = Passives.AbominationGenerator(abomAmt);
             en.PassiveAbilities.Add(abom);
             abom.OnTriggerAttached(en);
@@ -78,10 +86,15 @@ namespace AbominationMode
         
         public static void AddAbomination(EnemyCombat en)
         {
+            var addAmount = AddAbom.Value;
+
+            if (addAmount == 0)
+                return;
+
             if (en.Enemy == null || string.IsNullOrEmpty(en.Enemy.name) || !EnemiesWithAbom.TryGetValue(en.Enemy.name, out var origAbom))
                 origAbom = 0;
 
-            var abomAmt = origAbom + AddAbom;
+            var abomAmt = origAbom + addAmount;
             var abom = Passives.AbominationGenerator(abomAmt);
             en.AddPassiveAbility(abom);
         }
