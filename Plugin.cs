@@ -21,6 +21,9 @@ namespace AbominationMode
             // basegame
             ["OneManBand_EN"] = 1,
             ["UnfinishedHeir_BOSS"] = 1,
+            ["Bronzo2_EN"] = 1,
+            ["Bronzo4_EN"] = 1,
+            ["BronzoExtra_EN"] = 1,
             
             // modded
             ["VanishingHands_EN"] = 2,
@@ -71,7 +74,7 @@ namespace AbominationMode
                     en.PassiveAbilities.Remove(exist);
                     exist.OnTriggerDettached(en);
 
-                    if (en.ContainsPassiveAbility(PassiveType_GameIDs.Decay.ToString()))
+                    if (en.ContainsPassiveAbility(PassiveType_GameIDs.Abomination.ToString()))
                         return; // WTF?
                 }
                 else
