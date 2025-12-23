@@ -7,6 +7,7 @@ using MonoMod.Cil;
 using System;
 using System.Collections.Generic;
 using System.Reflection;
+using System.Text.RegularExpressions;
 
 namespace AbominationMode
 {
@@ -16,18 +17,7 @@ namespace AbominationMode
     {
         public const string GUID = "SpecialAPI.AbominationMode";
 
-        public static Dictionary<string, int> EnemiesWithAbom = new()
-        {
-            // basegame
-            ["OneManBand_EN"] = 1,
-            ["UnfinishedHeir_BOSS"] = 1,
-            ["Bronzo2_EN"] = 1,
-            ["Bronzo4_EN"] = 1,
-            ["BronzoExtra_EN"] = 1,
-            
-            // modded
-            ["VanishingHands_EN"] = 2,
-        };
+        public static Regex AbominationRankRegex = MakePassiveRankRegex("Abomination", false);
         public static ConfigEntry<int> AddAbom;
 
         public static MethodInfo aa_ne_a = AccessTools.Method(typeof(Plugin), nameof(AddAbomination_NewEnemy_Add));
@@ -54,6 +44,40 @@ namespace AbominationMode
             crs.Emit(OpCodes.Call, aa_ne_a);
         }
 
+        public static Regex MakePassiveRankRegex(string passiveBaseName, bool includePrefixes)
+        {
+            var pattern = $@"{passiveBaseName}_([^_]*)_PA$";
+            if (includePrefixes)
+                pattern = $@"[^_]*_?{pattern}";
+            pattern = $@"^{pattern}";
+
+            return new Regex(pattern);
+        }
+
+        public static bool TryGetAbominationRank(BasePassiveAbilitySO abominationPA, out int rank)
+        {
+            if (abominationPA == null || string.IsNullOrEmpty(abominationPA.name))
+            {
+                rank = 0;
+                return false;
+            }
+
+            if(abominationPA.name == "Abomination_PA")
+            {
+                rank = 1;
+                return true;
+            }
+
+            if(AbominationRankRegex.Match(abominationPA.name) is Match m && m.Success && int.TryParse(m.Groups[1].Value, out var r))
+            {
+                rank = r;
+                return true;
+            }
+
+            rank = 0;
+            return false;
+        }
+
         public static void AddAbomination_NewEnemy_Add(EnemyCombat en)
         {
             if (en == null)
@@ -64,13 +88,14 @@ namespace AbominationMode
             if (addAmount == 0)
                 return; // this fucking sucks
 
-            if (en.Enemy == null || string.IsNullOrEmpty(en.Enemy.name) || !EnemiesWithAbom.TryGetValue(en.Enemy.name, out var origAbom))
-                origAbom = 0;
+            var origAbom = 0;
 
             if (en.TryGetPassiveAbility(PassiveType_GameIDs.Abomination.ToString(), out var exist))
             {
-                if (origAbom > 0)
+                if (TryGetAbominationRank(exist, out var rank))
                 {
+                    origAbom = rank;
+
                     en.PassiveAbilities.Remove(exist);
                     exist.OnTriggerDettached(en);
 
@@ -94,8 +119,27 @@ namespace AbominationMode
             if (addAmount == 0)
                 return;
 
-            if (en.Enemy == null || string.IsNullOrEmpty(en.Enemy.name) || !EnemiesWithAbom.TryGetValue(en.Enemy.name, out var origAbom))
-                origAbom = 0;
+            var origAbom = 0;
+
+            if (en.TryGetPassiveAbility(PassiveType_GameIDs.Abomination.ToString(), out var exist))
+            {
+                if (TryGetAbominationRank(exist, out var rank))
+                {
+                    origAbom = rank;
+
+                    en.PassiveAbilities.Remove(exist);
+                    exist.OnTriggerDettached(en);
+                    exist.OnPassiveDisconnected(en);
+
+                    if (en.ContainsPassiveAbility(PassiveType_GameIDs.Abomination.ToString())) // WTF?
+                    {
+                        CombatManager.Instance.AddUIAction(new EnemyPassiveAbilityChangeUIAction(en.ID, [..en.PassiveAbilities]));
+                        return;
+                    }
+                }
+                else
+                    return;
+            }
 
             var abomAmt = origAbom + addAmount;
             var abom = Passives.AbominationGenerator(abomAmt);
