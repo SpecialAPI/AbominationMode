@@ -11,164 +11,22 @@ using System.Text.RegularExpressions;
 
 namespace AbominationMode
 {
-    [BepInPlugin(GUID, "Abomination Mode", "1.0.0")]
+    [BepInPlugin(MOD_GUID, MOD_NAME, MOD_VERSION)]
     [HarmonyPatch]
     public class Plugin : BaseUnityPlugin
     {
-        public const string GUID = "SpecialAPI.AbominationMode";
+        public const string MOD_GUID = "SpecialAPI.AbominationMode";
+        public const string MOD_NAME = "Abomination Mode";
+        public const string MOD_VERSION = "1.0.0";
 
-        public static Regex AbominationRankRegex = MakePassiveRankRegex("Abomination", false);
-        public static ConfigEntry<int> AddAbom;
-
-        public static MethodInfo aa_ne_a = AccessTools.Method(typeof(Plugin), nameof(AddAbomination_NewEnemy_Add));
-        public static MethodInfo aa_u_a = AccessTools.Method(typeof(Plugin), nameof(AddAbomination_Unbox_Add));
+        public static readonly Harmony HarmonyInstance = new(MOD_GUID);
 
         public void Awake()
         {
-            AddAbom = Config.Bind("AbominationMode", "AbominationAmount", 1, "The amount of Abomination that will be given to enemies.");
+            ModConfig.Config = Config;
+            ModConfig.Init();
 
-            var harmony = new Harmony(GUID);
-            harmony.PatchAll();
-        }
-
-        [HarmonyPatch(typeof(EnemyCombat), MethodType.Constructor, typeof(int), typeof(int), typeof(EnemySO), typeof(bool), typeof(int))]
-        [HarmonyILManipulator]
-        public static void AddAbomination_NewEnemy_Transpiler(ILContext ctx)
-        {
-            var crs = new ILCursor(ctx);
-
-            if (!crs.TryGotoNext(MoveType.After, x => x.MatchCallOrCallvirt<EnemyCombat>(nameof(EnemyCombat.DefaultPassiveAbilityInitialization))))
-                return;
-
-            crs.Emit(OpCodes.Ldarg_0);
-            crs.Emit(OpCodes.Call, aa_ne_a);
-        }
-
-        public static Regex MakePassiveRankRegex(string passiveBaseName, bool includePrefixes)
-        {
-            var pattern = $@"{passiveBaseName}_([^_]*)_PA$";
-            if (includePrefixes)
-                pattern = $@"[^_]*_?{pattern}";
-            pattern = $@"^{pattern}";
-
-            return new Regex(pattern);
-        }
-
-        public static bool TryGetAbominationRank(BasePassiveAbilitySO abominationPA, out int rank)
-        {
-            if (abominationPA == null || string.IsNullOrEmpty(abominationPA.name))
-            {
-                rank = 0;
-                return false;
-            }
-
-            if(abominationPA.name == "Abomination_PA")
-            {
-                rank = 1;
-                return true;
-            }
-
-            if(AbominationRankRegex.Match(abominationPA.name) is Match m && m.Success && int.TryParse(m.Groups[1].Value, out var r))
-            {
-                rank = r;
-                return true;
-            }
-
-            rank = 0;
-            return false;
-        }
-
-        public static void AddAbomination_NewEnemy_Add(EnemyCombat en)
-        {
-            if (en == null)
-                return;
-
-            var addAmount = AddAbom.Value;
-
-            if (addAmount == 0)
-                return; // this fucking sucks
-
-            var origAbom = 0;
-
-            if (en.TryGetPassiveAbility(PassiveType_GameIDs.Abomination.ToString(), out var exist))
-            {
-                if (TryGetAbominationRank(exist, out var rank))
-                {
-                    origAbom = rank;
-
-                    en.PassiveAbilities.Remove(exist);
-                    exist.OnTriggerDettached(en);
-
-                    if (en.ContainsPassiveAbility(PassiveType_GameIDs.Abomination.ToString()))
-                        return; // WTF?
-                }
-                else
-                    return;
-            }
-
-            var abomAmt = origAbom + addAmount;
-            var abom = Passives.AbominationGenerator(abomAmt);
-            en.PassiveAbilities.Add(abom);
-            abom.OnTriggerAttached(en);
-        }
-        
-        public static void AddAbomination(EnemyCombat en)
-        {
-            var addAmount = AddAbom.Value;
-
-            if (addAmount == 0)
-                return;
-
-            var origAbom = 0;
-
-            if (en.TryGetPassiveAbility(PassiveType_GameIDs.Abomination.ToString(), out var exist))
-            {
-                if (TryGetAbominationRank(exist, out var rank))
-                {
-                    origAbom = rank;
-
-                    en.PassiveAbilities.Remove(exist);
-                    exist.OnTriggerDettached(en);
-                    exist.OnPassiveDisconnected(en);
-
-                    if (en.ContainsPassiveAbility(PassiveType_GameIDs.Abomination.ToString())) // WTF?
-                    {
-                        CombatManager.Instance.AddUIAction(new EnemyPassiveAbilityChangeUIAction(en.ID, [..en.PassiveAbilities]));
-                        return;
-                    }
-                }
-                else
-                    return;
-            }
-
-            var abomAmt = origAbom + addAmount;
-            var abom = Passives.AbominationGenerator(abomAmt);
-            en.AddPassiveAbility(abom);
-        }
-
-        [HarmonyPatch(typeof(EnemyCombat), nameof(EnemyCombat.TransformEnemy))]
-        [HarmonyPostfix]
-        public static void AddAbomination_PostTransform_Postfix(EnemyCombat __instance)
-        {
-            AddAbomination(__instance);
-        }
-
-        [HarmonyPatch(typeof(CombatStats), nameof(CombatStats.TryUnboxEnemy))]
-        [HarmonyILManipulator]
-        public static void AddAbomination_Unbox_Transpiler(ILContext ctx)
-        {
-            var crs = new ILCursor(ctx);
-
-            while (crs.TryGotoNext(MoveType.After, x => x.MatchCallOrCallvirt<EnemyCombat>(nameof(EnemyCombat.ConnectPassives))))
-            {
-                crs.Emit(OpCodes.Ldloc_3);
-                crs.Emit(OpCodes.Call, aa_u_a);
-            }
-        }
-
-        public static void AddAbomination_Unbox_Add(EnemyCombat enm)
-        {
-            AddAbomination(enm);
+            HarmonyInstance.PatchAll();
         }
     }
 }
