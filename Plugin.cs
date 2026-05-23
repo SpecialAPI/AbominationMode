@@ -17,7 +17,7 @@ namespace AbominationMode
     {
         public const string MOD_GUID = "SpecialAPI.AbominationMode";
         public const string MOD_NAME = "Abomination Mode";
-        public const string MOD_VERSION = "1.0.0";
+        public const string MOD_VERSION = "1.1.0";
         public const string MOD_PREFIX = "AbominationMode";
 
         public static readonly Harmony HarmonyInstance = new(MOD_GUID);
